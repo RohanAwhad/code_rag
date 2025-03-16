@@ -84,7 +84,7 @@ def search_code(
   
   if filename:
     conditions.append("file_path LIKE %(filename)s")
-    params['filename'] = filename
+    params['filename'] = f'%{filename}%'
   
   # Add limit parameter
   params['limit'] = limit

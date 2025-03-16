@@ -12,3 +12,4 @@ wheels/
 .code_rag.sqlite3
 .llm
 example_kokoro.py
+tmp

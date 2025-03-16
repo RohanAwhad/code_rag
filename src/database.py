@@ -33,7 +33,6 @@ def push_to_db(df):
     component_type TEXT,
     name TEXT,
     code TEXT,
-    code_vector tsvector generated always as (to_tsvector('english', code)) stored,
     UNIQUE(file_path, component_type, name)
   )
   ''')
