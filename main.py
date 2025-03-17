@@ -26,7 +26,8 @@ def main(user_prompt, project_path):
       query=q['query_text'],
       component_type=q['component_type'],
       filename=q['filename'],
-      limit=2
+      project_path=project_path,
+      limit=2,
     )
     all_results.extend(results)
   all_results = utils.deduplicate(all_results)

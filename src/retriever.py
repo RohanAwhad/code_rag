@@ -59,6 +59,7 @@ def get_definition(
 
 def search_code(
   query: str,
+  project_path: str,
   component_type: str = None,
   filename: str = None,
   limit: int = 10
@@ -73,6 +74,9 @@ def search_code(
   conditions = []
   params = {}
   order_clause = ''
+
+  params['project_path'] = project_path
+  conditions.append('project_path = %(project_path)s')
 
   if query:
     params['query'] = query
