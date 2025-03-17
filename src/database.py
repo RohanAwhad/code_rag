@@ -18,7 +18,7 @@ def get_connection():
     password=DB_PASS
   )
 
-def push_to_db(df):
+def push_to_db(df, project_path):
   conn = get_connection()
   cursor = conn.cursor()
   
@@ -33,7 +33,8 @@ def push_to_db(df):
     component_type TEXT,
     name TEXT,
     code TEXT,
-    UNIQUE(file_path, component_type, name)
+    project_path TEXT,
+    UNIQUE(file_path, component_type, name, project_path)
   )
   ''')
   
@@ -44,34 +45,34 @@ def push_to_db(df):
   ''')
   
   # Insert data from DataFrame
-  data = [(row['file_path'], row['component_type'], row['name'], row['code']) 
+  data = [(row['file_path'], row['component_type'], row['name'], row['code'], project_path) 
           for _, row in df.iterrows()]
   
   execute_values(cursor, '''
-    INSERT INTO components (file_path, component_type, name, code) 
+    INSERT INTO components (file_path, component_type, name, code, project_path) 
     VALUES %s
-    ON CONFLICT(file_path, component_type, name) 
+    ON CONFLICT(file_path, component_type, name, project_path) 
     DO UPDATE SET code = EXCLUDED.code
   ''', data)
 
-  # Create component-specific views
-  cursor.execute('''
-  CREATE OR REPLACE VIEW function_indices AS
-  SELECT id, file_path, name, code FROM components 
-  WHERE component_type = 'function'
-  ''')
-
-  cursor.execute('''
-  CREATE OR REPLACE VIEW class_indices AS
-  SELECT id, file_path, name, code FROM components 
-  WHERE component_type = 'class'
-  ''')
-
-  cursor.execute('''
-  CREATE OR REPLACE VIEW param_indices AS
-  SELECT id, file_path, name, code FROM components 
-  WHERE component_type = 'params'
-  ''')
+  # # Create component-specific views
+  # cursor.execute('''
+  # CREATE OR REPLACE VIEW function_indices AS
+  # SELECT id, file_path, name, code FROM components 
+  # WHERE component_type = 'function'
+  # ''')
+  #
+  # cursor.execute('''
+  # CREATE OR REPLACE VIEW class_indices AS
+  # SELECT id, file_path, name, code FROM components 
+  # WHERE component_type = 'class'
+  # ''')
+  #
+  # cursor.execute('''
+  # CREATE OR REPLACE VIEW param_indices AS
+  # SELECT id, file_path, name, code FROM components 
+  # WHERE component_type = 'params'
+  # ''')
 
   # Commit and close
   conn.commit()

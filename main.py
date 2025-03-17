@@ -1,125 +1,78 @@
-import claudette
-import hashlib
+from loguru import logger
 
-from src import component_extractor, file_grabber, database, retriever, llm_response_parser
-
-# EXAMPLE_PROJECT = "/Users/rohan/3_Resources/external_libs/gpt-researcher"
-# EXAMPLE_PROJECT = "/Users/rohan/0_Inbox/testing_kokoro/kokoro-tts"
-EXAMPLE_PROJECT = "/Users/rohan/1_Porn/PixQuery_django"
-
-FILE_INDEX = {}
-
-def remove_unchanged_files(file_list, FILE_INDEX):
-  '''hash all files and check if they are same with previous ones, if yes, skip that file'''
-  changed_files = []
-  new_file_index = {}
-
-  for file_path in file_list:
-    try:
-      with open(file_path, 'rb') as f:
-        content = f.read()
-        file_hash = hashlib.md5(content).hexdigest()
-
-      new_file_index[file_path] = file_hash
-
-      # Check if file is new or changed
-      if file_path not in FILE_INDEX or FILE_INDEX[file_path] != file_hash:
-        changed_files.append(file_path)
-    except Exception as e:
-      print(f"Error processing file {file_path}: {e}")
-      # Include file in changed_files anyway to be safe
-      changed_files.append(file_path)
-
-  return changed_files, new_file_index
+from src import (
+  component_extractor,
+  file_grabber,
+  database,
+  retriever,
+  llm,
+  utils,
+)
 
 
-def call_retriever(query, component_type, filename, limit=2):
-  print(query, component_type, filename)
-  results = retriever.search_code(
-    query=query,
-    component_type=component_type,
-    filename=filename,
-    limit=limit,
-  )
-  print(results)
-  ret = []
-
-  for res in results:
-    _tmp = '\n'
-    _tmp += 'filename: ' + res['file_path'] + '\n'
-    _tmp += 'component_name: ' + res['name'] + '\n'
-    _tmp += 'code:\n'
-    _tmp += res['code']
-    _tmp += '\n' + '='*10
-    ret.append(_tmp)
-
-  return ''.join(ret)
-
-
-SYS_PROMPT = '''
-You are a language model, and your job is to help me build context for my prompt to a Coder Agent.
-
-I will send you the entire code from the current file I am working on. 99% of the time, the last couple of lines will contain the things I want to do.
-
-I want you to reason about what I want, what all code I currently have and then produce a search call to grab all the context required.
-
-The way you should output is following:
-1. First you will reason through what all I asked, and then you will generate 0 or more search queries.
-2. Your search queries will have the following xml format:
-
-<search_queries>
-  <query_1>
-    <query_text>some text here. try to keep it as similar as possible</query_text>
-    <filename>possible filename or filepath like project/utils</filename>
-    <component_type>This should be one of 'class', 'function', 'param', or 'full_text' (full text returns the entire script)</component_type>
-  </query_1>
-  <query_2>
-    [...]
-  </query_2>
-  [...]
-</search_queries>
-
-Instructions:
-  - Be a good boy and reason and give me good search queries.
-  - DO NOT try to answer my question.
-  - First reason
-  - then generate search queries
-'''
-
-
-
-def main(prompt):
-  global FILE_INDEX
-
-  python_files = file_grabber.grab_all_python_file(EXAMPLE_PROJECT)
-  changed_python_files, FILE_INDEX = remove_unchanged_files(python_files, FILE_INDEX)
+def main(user_prompt, project_path):
+  python_files = file_grabber.grab_all_python_file(project_path)
+  changed_python_files, SESSION_DATA['FILE_INDEX'] = utils.remove_unchanged_files(python_files, SESSION_DATA['FILE_INDEX'])
   if len(changed_python_files):
     df = component_extractor.extract(changed_python_files)
-    database.push_to_db(df)
+    database.push_to_db(df, project_path)
 
-  llm = claudette.Chat(claudette.models[1], sp=SYS_PROMPT)
-  op = llm(f'<user_prompt_for_coder>{prompt}</user_prompt_for_coder>\n\nGenerate search queries')
-  response = op.content[0].text
-  print(response)
-  queries = llm_response_parser.parse_search_queries(response)
-
-  print('Context')
-  context = []
+  queries = llm.get_search_queries(user_prompt)
+  all_results = []
   for q in queries:
-    context.append(call_retriever(
+    results = retriever.search_code(
       query=q['query_text'],
       component_type=q['component_type'],
       filename=q['filename'],
       limit=2
-    ))
+    )
+    all_results.extend(results)
+  all_results = utils.deduplicate(all_results)
+  context = utils.format_results(all_results)
+  return context
 
-  print('\n\n'.join(context))
-  with open('tmp', 'w') as f: f.write('\n\n'.join(context))
+# ===
+# FastAPI
+# ===
+from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
+import uvicorn
+import argparse
 
+app = FastAPI()
+SESSION_DATA = {'FILE_INDEX': {}}
 
-if __name__ == '__main__':
-  while True:
-    main(prompt)
-    input()
+class PromptRequest(BaseModel):
+    prompt: str
 
+@app.post("/", response_class=PlainTextResponse)
+async def process_prompt(request: PromptRequest):
+    try:
+      context = main(request.prompt, SESSION_DATA['project_path'])
+      return context
+    except Exception as e:
+      logger.exception('internal server err')
+      return ''
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+def start_server(project_path: str, host: str = "0.0.0.0", port: int = 8000):
+    SESSION_DATA['project_path'] = project_path
+    uvicorn.run(app, host=host, port=port)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Code context server")
+    parser.add_argument("project_path", type=str, help="Path to the project to analyze")
+    parser.add_argument("--host", type=str, default="localhost", help="Host to run the server on")
+    parser.add_argument("--port", type=int, default=9999, help="Port to run the server on")
+    
+    args = parser.parse_args()
+    
+    print(f"Starting server for project: {args.project_path}")
+    print(f"Server running at http://{args.host}:{args.port}")
+    
+    start_server(args.project_path, args.host, args.port)
 

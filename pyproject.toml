@@ -6,11 +6,16 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "claudette>=0.1.4",
+    "fastapi>=0.115.11",
+    "loguru>=0.7.3",
     "pandas>=2.2.3",
     "psycopg2-binary>=2.9.10",
+    "pydantic>=2.10.6",
+    "uvicorn>=0.34.0",
 ]
 
 [dependency-groups]
 dev = [
     "ipython>=8.34.0",
+    "pyperclip>=1.9.0",
 ]
