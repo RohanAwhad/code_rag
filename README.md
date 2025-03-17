@@ -1,11 +1,12 @@
 # How to run
 
 1. Start up postgres db using "docker compose up -d"
-2. Add the following alias to your `.rc` file:
+2. Install deps: `uv sync`
+3. Add the following alias to your `.rc` file:
     ```bash
     alias code_rag="/Users/rohan/1_Porn/sundai_club/az_chapter/2025/mar_16_code_rag/.venv/bin/python /Users/rohan/1_Porn/sundai_club/az_chapter/2025/mar_16_code_rag/main.py \$(pwd)"
     ```
-3. Head into your project and run `code_rag`.
+4. Head into any of your project and run `code_rag`.
 
 This will start the rag server, and then you can use it in your dingllm. I have a fork maintained here: https://github.com/RohanAwhad/dingllm.nvim
 
