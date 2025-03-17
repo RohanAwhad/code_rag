@@ -1,6 +1,7 @@
 import ast
 import os
 import pandas as pd
+from loguru import logger
 
 def extract_components(file_path):
     # Read the file content
@@ -119,15 +120,17 @@ def extract(files: list[str]):
     # extract components
     components = {}
     for file in files:
-      with open(file, 'r') as f: full_text = f.read().strip()
-      funcs, classes, params, _, _ = extract_components(file)
-      components[file] = {
-        'functions': funcs,
-        'classes': classes,
-        'params': params,
-        'full_text': full_text,
-      }
-
-    return to_df(components)
+      try:
+          with open(file, 'r') as f: full_text = f.read().strip()
+          funcs, classes, params, _, _ = extract_components(file)
+          components[file] = {
+            'functions': funcs,
+            'classes': classes,
+            'params': params,
+            'full_text': full_text,
+          }
+      except Exception as e:
+        logger.exception(f'extraction failed for: {file}')
+    return to_df(components) if len(components) else None
 
 

@@ -15,8 +15,10 @@ def main(user_prompt, project_path):
   changed_python_files, SESSION_DATA['FILE_INDEX'] = utils.remove_unchanged_files(python_files, SESSION_DATA['FILE_INDEX'])
   if len(changed_python_files):
     df = component_extractor.extract(changed_python_files)
-    database.push_to_db(df, project_path)
+    if df is not None:
+      database.push_to_db(df, project_path)
 
+  if user_prompt == '': return ''
   queries = llm.get_search_queries(user_prompt)
   all_results = []
   for q in queries:
@@ -29,7 +31,9 @@ def main(user_prompt, project_path):
     all_results.extend(results)
   all_results = utils.deduplicate(all_results)
   context = utils.format_results(all_results)
-  return context
+  ret = f'<context>\n{context.strip()}\n</context>\n'
+  logger.debug(f'Returning: {ret}')
+  return ret
 
 # ===
 # FastAPI
@@ -61,6 +65,7 @@ async def health_check():
 
 def start_server(project_path: str, host: str = "0.0.0.0", port: int = 8000):
     SESSION_DATA['project_path'] = project_path
+    _ = main('', project_path)  # creating the initial db
     uvicorn.run(app, host=host, port=port)
 
 if __name__ == "__main__":

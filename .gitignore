@@ -13,3 +13,4 @@ wheels/
 .llm
 example_kokoro.py
 tmp
+run.sh
