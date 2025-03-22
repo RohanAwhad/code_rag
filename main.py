@@ -10,11 +10,11 @@ from src import (
 )
 
 
-def main(user_prompt, project_path):
+async def main(user_prompt, project_path):
   python_files = file_grabber.grab_all_python_file(project_path)
   changed_python_files, SESSION_DATA['FILE_INDEX'] = utils.remove_unchanged_files(python_files, SESSION_DATA['FILE_INDEX'])
   if len(changed_python_files):
-    df = component_extractor.extract(changed_python_files)
+    df = await component_extractor.extract(changed_python_files)
     if df is not None:
       database.push_to_db(df, project_path)
 
@@ -54,7 +54,7 @@ class PromptRequest(BaseModel):
 @app.post("/", response_class=PlainTextResponse)
 async def process_prompt(request: PromptRequest):
     try:
-      context = main(request.prompt, SESSION_DATA['project_path'])
+      context = await main(request.prompt, SESSION_DATA['project_path'])
       return context
     except Exception as e:
       logger.exception('internal server err')
@@ -66,7 +66,6 @@ async def health_check():
 
 def start_server(project_path: str, host: str = "0.0.0.0", port: int = 8000):
     SESSION_DATA['project_path'] = project_path
-    _ = main('', project_path)  # creating the initial db
     uvicorn.run(app, host=host, port=port)
 
 if __name__ == "__main__":
