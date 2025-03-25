@@ -20,7 +20,6 @@ def extract_components(source: str):
     lang = Language(tspython.language())
     parser = Parser(lang)
     tree = parser.parse(bytes(source, "utf8"))
-    
     # Initialize result dictionaries
     functions = {}
     classes = {}
@@ -98,11 +97,11 @@ def to_df(components):
   print(df)
   return df
 
-
-async def read_file(file):
+async def read_file(file: str) -> str:
   """Reads a file asynchronously and returns its contents."""
-  async with aiofiles.open(file, 'r') as f:
+  async with aiofiles.open(file, 'r', errors='ignore') as f:
     return await f.read()
+
 
 async def process_file(file):
   try:
