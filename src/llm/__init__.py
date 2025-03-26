@@ -1,5 +1,7 @@
-import claudette
+import os
 import re
+
+from . import model
 
 SYS_PROMPT = '''
 You are a language model, and your job is to help me build context for my prompt to a Coder Agent.
@@ -15,7 +17,7 @@ The way you should output is following:
 <search_queries>
   <query_1>
     <query_text>some text here. try to keep it as similar as possible</query_text>
-    <filename>possible filename or filepath like project/utils</filename>
+    <filename>possible filename or filepath like project/utils. Do not include any extension, because that might be a module or a file, which you do not know.</filename>
     <component_type>This should be one of 'class', 'function', 'param', or 'full_text' (full text returns the entire script)</component_type>
   </query_1>
   <query_2>
@@ -29,8 +31,31 @@ Instructions:
   - DO NOT try to answer my question.
   - First reason
   - then generate search queries
+  - Query Text:
+    - query is a search query.
+    - it works using trigram search.
+    - this should not be questions.
+    - this should be text which closely resembles what you want, eg function name, class name, etc.
+  - Filename:
+    - DO NOT INCLUDE EXTENSIONS TO FILENAME
+  - Component Type:
+    - It should be one of "class", "function", "param" or "full_text"
+    - Use "full_text" whenever you need to explore the entire file or module.
 '''
 
+qwen = model.OpenAIModel(
+  base_url="http://localhost:11434/v1",
+  api_key='ollama',
+  model_name='qwen2.5-coder:7b',
+)
+gemini_flash = model.OpenAIModel(
+  base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+  api_key=os.environ['GEMINI_API_KEY'],
+  model_name='gemini-2.0-flash',
+)
+
+
+LLM = gemini_flash
 
 def parse_search_queries(search_queries_text):
   """
@@ -70,8 +95,14 @@ def parse_search_queries(search_queries_text):
   return queries
 
 def get_search_queries(user_prompt):
-  model = claudette.Chat(claudette.models[1], sp=SYS_PROMPT)
-  op = model(f'<user_prompt_for_coder>{user_prompt}</user_prompt_for_coder>\n\nGenerate search queries')
-  response = op.content[0].text
+  global SYS_PROMPT
+
+  modified_user_prompt = f'<user_prompt_for_coder>{user_prompt}</user_prompt_for_coder>\n\nGenerate search queries'
+  messages = [
+    model.Message(role='system', content=SYS_PROMPT),
+    model.Message(role='user', content=modified_user_prompt),
+  ]
+  response = LLM.ask(messages)
   print(response)
   return parse_search_queries(response)
+
